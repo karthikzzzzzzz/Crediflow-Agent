@@ -1,0 +1,9 @@
+{
+    "dependencies":["."],
+    "graphs":{
+        "document-agent":"./Document_Verification_Agent/services/Document_Verification.py:graph", 
+        "eligibility-agent":"./Eligibility_Check_Agent/services/Eligibility_check.py:graph",
+        "report-agent":"./Report_Generation_Agent/services/Report_generation.py:graph",
+        "screening-agent":"./Screening_Ops_Maker_Agent/services/Screening_ops.py:graph"
+    }
+}

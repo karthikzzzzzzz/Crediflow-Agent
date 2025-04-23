@@ -1,19 +1,19 @@
 from kafka import KafkaConsumer
 import json
 import asyncio
-from Bank_Office_Agent.services.Bank_office import chat
+from Data_Acquistion_Agent.services.data_acquistion import chat1
 from config.database import get_db
 from config.models import Logs
 from sqlalchemy.orm import Session
-import os
+import os 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 consumer = KafkaConsumer(
-    'risk',
+    'risk-graph',
     bootstrap_servers=[os.getenv("KAFKA_HOST")],
-    group_id=os.getenv("KAFKA_GROUP"),
+    group_id='risk-graph-group',
     value_deserializer=lambda m: json.loads(m.decode('utf-8')),
     auto_offset_reset='earliest',
     enable_auto_commit=True
@@ -25,8 +25,8 @@ async def process_message(message):
     try:
         query = message["query"]
         log_id = message["log_id"]
-        result = await chat.run_query(query)
-        log_entry = Logs(id=log_id, query=query, response=result["responses"])
+        result = await chat1.run_query(query)
+        log_entry = Logs(id=log_id, query=query, response=result["underwriting_graph_output"])
         db.add(log_entry)
         db.commit()
         db.refresh(log_entry)

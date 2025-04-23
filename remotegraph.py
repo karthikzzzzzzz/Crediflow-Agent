@@ -20,18 +20,21 @@ async def main():
         memory= AsyncPostgresSaver(conn)
         await memory.setup()
 
+        data_node = RemoteGraph("data-acquistion-agent", url=base_url)
         document_node = RemoteGraph("document-agent", url=base_url)
         screening_node = RemoteGraph("screening-agent", url=base_url)
         eligibility_node = RemoteGraph("eligibility-agent", url=base_url)
         report_node = RemoteGraph("report-agent", url=base_url)
 
         graph_builder = StateGraph(State)
+        graph_builder.add_node("data-acquistion-agent",data_node)
         graph_builder.add_node("document-agent", document_node)
         graph_builder.add_node("screening-agent", screening_node)
         graph_builder.add_node("eligibility-agent", eligibility_node)
         graph_builder.add_node("report-agent", report_node)
 
-        graph_builder.add_edge(START, "document-agent")
+        graph_builder.add_edge(START, "data-acquistion-agent")
+        graph_builder.add_edge("data-acquistion-agent","document-agent")
         graph_builder.add_edge("document-agent", "screening-agent")
         graph_builder.add_edge("screening-agent", "eligibility-agent")
         graph_builder.add_edge("eligibility-agent", "report-agent")
@@ -39,7 +42,7 @@ async def main():
 
         graph = graph_builder.compile(checkpointer=memory)
 
-        request = "Hi my name is deepak"
+        request = "hello"
         result = graph.ainvoke({"messages": [{"role": "user", "content": request}]},config={"configurable": {"thread_id": "1"},"callbacks": [langfuse_handler]})
         return result
 

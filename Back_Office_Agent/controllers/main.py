@@ -10,7 +10,7 @@ import json
 from config.schema import Request
 import random
 
-bankagent= APIRouter()
+backagent= APIRouter()
 
 models.Base.metadata.create_all(engine)
 
@@ -20,7 +20,7 @@ producer = KafkaProducer(
 )
 
 
-@bankagent.post("/bank-office-agent/api/v1/chat-completions")
+@backagent.post("/back-office-agent/api/v1/chat-completions")
 async def chat_request(request: Request):
     try:
         query_text = request.text
@@ -36,7 +36,7 @@ async def chat_request(request: Request):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing query: {str(e)}")
     
-@bankagent.get("/bank-office-agent/api/v1/get-response/{log_id}")
+@backagent.get("/back-office-agent/api/v1/get-response/{log_id}")
 def retrieve_chat_response(log_id: int, db: Session = Depends(get_db)):
     log = db.query(Logs).filter(Logs.id == log_id).first()
     if not log:

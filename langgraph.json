@@ -1,6 +1,7 @@
 {
     "dependencies":["."],
     "graphs":{
+        "data-acquistion-agent":"./Data_Acquistion_Agent/services/data_acquistion.py:graph",
         "document-agent":"./Document_Verification_Agent/services/Document_Verification.py:graph", 
         "eligibility-agent":"./Eligibility_Check_Agent/services/Eligibility_check.py:graph",
         "report-agent":"./Report_Generation_Agent/services/Report_generation.py:graph",

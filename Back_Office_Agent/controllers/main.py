@@ -20,7 +20,7 @@ producer = KafkaProducer(
 )
 
 
-@backagent.post("/back-office-agent/api/v1/chat-completions")
+@backagent.post("/v1/users/tasks", summary="Process a chat query via internal logic")
 async def chat_request(request: Request):
     try:
         query_text = request.text
@@ -36,7 +36,7 @@ async def chat_request(request: Request):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing query: {str(e)}")
     
-@backagent.get("/back-office-agent/api/v1/get-response/{log_id}")
+@backagent.get("/v1/users/responses/{log_id}", summary="Get chat response by log ID")
 def retrieve_chat_response(log_id: int, db: Session = Depends(get_db)):
     log = db.query(Logs).filter(Logs.id == log_id).first()
     if not log:

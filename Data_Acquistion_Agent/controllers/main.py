@@ -22,7 +22,7 @@ producer1 = KafkaProducer(
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
 
-@dataagent.get("/data-acquistion-agent/api/get-response/{log_id}")
+@dataagent.get("/v1/users/responses/{log_id}", summary="Get chat response by log ID")
 def retrieve_chat_response(log_id: int, db: Session = Depends(get_db)):
     log = db.query(Logs).filter(Logs.id == log_id).first()
     if not log:
@@ -33,7 +33,7 @@ def retrieve_chat_response(log_id: int, db: Session = Depends(get_db)):
         "response": log.response
     }  
 
-@dataagent.post("/data-acquistion-agent/api/v1/chat-completions")
+@dataagent.post("/v1/users/tasks", summary="Process a chat query via internal logic")
 async def process_query(request:Request,db:Session=Depends(get_db)):
     try:
         result = await chat1.run_query(request.text)
@@ -42,7 +42,7 @@ async def process_query(request:Request,db:Session=Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing query: {str(e)}")
     
 
-@dataagent.post("/data-acquistion-agent/api/v2/chat-completions")
+@dataagent.post("/v2/users/tasks", summary="Submit a chat query for Kafka processing")
 async def verify_query(request: Request):
     try:
         query_text = request.text

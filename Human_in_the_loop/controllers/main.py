@@ -13,7 +13,7 @@ hilagent= APIRouter()
 
 models.Base.metadata.create_all(engine)
 
-@hilagent.post('/hil/api/v1/request')
+@hilagent.post("/v1/users/tasks", summary="Process a chat query via internal logic")
 async def recieve_request(request:Request):
     try:
         result = await hil.process_query(request.text)

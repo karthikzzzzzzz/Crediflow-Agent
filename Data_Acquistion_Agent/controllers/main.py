@@ -4,7 +4,7 @@ from kafka import KafkaProducer
 from utils.database import engine
 from utils.database import get_db
 from sqlalchemy.orm import Session
-from utils.models import Logs
+from utils.models import DataAcquisitionSchema
 import utils.models as models
 from dependency_injector.wiring import inject, Provide
 import json
@@ -25,16 +25,24 @@ producer1 = KafkaProducer(
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
 
-    
+
 @dataagent.get("/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status", response_model=StatusResponse, summary="Get chat response by log ID")
-def retrieve_chat_response(sessionId: int,realmId:str,userId:int,leadId:int, db: Session = Depends(get_db)):
-    log = db.query(Logs).filter(Logs.id == sessionId).first()
+def retrieve_chat_response(sessionId: str,realmId:str,userId:int,leadId:int,query_id:int, db: Session = Depends(get_db)):
+    log = db.query(DataAcquisitionSchema).filter(DataAcquisitionSchema.query_id == query_id).first()
     if not log:
         raise HTTPException(status_code=404, detail="Log not found")
 
     return {
         "status": "completed" if log.response else "pending",
-        "response": log.response
+        "user_id": userId,
+        "realm_id": realmId,
+        "lead_id": leadId,
+        "query_id": query_id,
+        "session_id": log.session_id,
+        "trace_id": log.trace_id,
+        "query": log.query,
+        "response": log.response,
+        "timestamp": log.timestamp,
     }
 
 
@@ -47,6 +55,7 @@ async def process_query(
 ):
     try:
         result = await chat.run_query(request.text)
+          
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
@@ -55,6 +64,8 @@ async def process_query(
 @dataagent.post("/v2/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision", response_model=KafkaSubmissionResponse, summary="Submit a chat query for Kafka listener")
 async def verify_query(request: Request,realmId:str,userId:int,leadId:int, sessionId:str):
     try:
+        if not sessionId:
+            raise HTTPException(status_code=500,detail="not a valid session id")
         query_text = request.text
         if not query_text:
             raise HTTPException(status_code=400, detail="Missing 'query' in request.")
@@ -62,7 +73,10 @@ async def verify_query(request: Request,realmId:str,userId:int,leadId:int, sessi
         query_id = random.randint(100000, 999999)
         producer1.send("risk-graph", {
             "query": query_text,
-            "log_id": query_id
+            "user_id": userId,
+            "realm_id": realmId,
+            "lead_id": leadId,
+            "query_id": query_id,
         })
 
         return {
@@ -72,3 +86,4 @@ async def verify_query(request: Request,realmId:str,userId:int,leadId:int, sessi
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+

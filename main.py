@@ -41,8 +41,6 @@ hil_container.wire(modules=["Human_in_the_loop.controllers.main"])
 
 
 
-
-
 app = FastAPI(
     title="Agents",
     description="This API routes requests to different agent.",

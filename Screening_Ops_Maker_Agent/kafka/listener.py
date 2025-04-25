@@ -3,7 +3,7 @@ import json
 import asyncio
 from Screening_ops_maker_agent.services.screening_ops import ScreeningOps
 from utils.database import get_db
-from utils.models import Logs
+from utils.models import ScreeningOpsSchema
 from sqlalchemy.orm import Session
 import os
 from dotenv import load_dotenv
@@ -30,10 +30,24 @@ async def process_message(
     db: Session = next(db_gen)
     try:
         query = message["query"]
-        log_id = message["log_id"]
+        query_id = message["query_id"]
+        realm_id = message["realm_id"]
+        user_id = message["user_id"]
+        lead_id = message["lead_id"]
+
+
         result = await chat.run_query(query)
 
-        log_entry = Logs(id=log_id, query=query, response=result["agent_response"])
+        log_entry = ScreeningOpsSchema(
+            user_id=user_id,
+            realm_id=realm_id,
+            lead_id=lead_id,
+            session_id=result["session_id"],
+            trace_id=result["trace_id"],
+            query_id=query_id,
+            query=query,
+            response=result["agent_response"]
+        )
         db.add(log_entry)
         db.commit()
         db.refresh(log_entry)

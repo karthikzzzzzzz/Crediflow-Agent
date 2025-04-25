@@ -1,17 +1,16 @@
-from fastapi import HTTPException,APIRouter,Depends
+from fastapi import HTTPException, APIRouter, Depends
 from starlette import status
 from kafka import KafkaProducer
-from utils.database import engine
-from utils.database import get_db
+from utils.database import engine, get_db
 from sqlalchemy.orm import Session
-from utils.models import Logs
+from utils.models import ScreeningOpsSchema  
 import utils.models as models
 import json
-from utils.schema import Request, StatusResponse, KafkaSubmissionResponse,AgentResponse
+from utils.schema import Request, StatusResponse, KafkaSubmissionResponse, AgentResponse
 import random
 from Screening_ops_maker_agent.services.screening_ops import ScreeningOps
 from dependency_injector.wiring import inject, Provide
-import os 
+import os
 from dotenv import load_dotenv
 from Screening_ops_maker_agent.dependencies.containers import Container
 
@@ -25,40 +24,97 @@ producer1 = KafkaProducer(
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
 
-@screeningagent.get("/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status", response_model=StatusResponse,summary="Get chat response by session ID")
-def retrieve_chat_response(sessionId: int,realmId:str,userId:int,leadId:int, db: Session = Depends(get_db)):
-    log = db.query(Logs).filter(Logs.id == sessionId).first()
+@screeningagent.get(
+    "/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status",
+    response_model=StatusResponse,
+    summary="Get chat response by query ID"
+)
+def retrieve_chat_response(
+    sessionId: str,
+    realmId: str,
+    userId: int,
+    leadId: int,
+    query_id: int,
+    db: Session = Depends(get_db)
+):
+    log = db.query(ScreeningOpsSchema).filter(ScreeningOpsSchema.query_id == query_id).first()
     if not log:
-        raise HTTPException(status_code=404, detail="Log not found")
+        raise HTTPException(status_code=404, detail=f"Query ID {query_id} not found.")
 
     return {
         "status": "completed" if log.response else "pending",
-        "response": log.response
-    }  
+        "user_id": log.user_id,
+        "realm_id": log.realm_id,
+        "lead_id": log.lead_id,
+        "query_id": log.query_id,
+        "session_id": log.session_id,
+        "trace_id": log.trace_id,
+        "query": log.query,
+        "response": log.response,
+        "timestamp": log.timestamp,
+    }
 
-@screeningagent.post("/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision",response_model=AgentResponse, summary="Process a chat query via screening ops agent")
+@screeningagent.post(
+    "/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision",
+    response_model=AgentResponse,
+    summary="Process a chat query via Screening Ops agent"
+)
 @inject
-async def process_query(request:Request,realmId:str,userId:int,leadId:int, sessionId:str,db:Session=Depends(get_db),chat: ScreeningOps = Depends(Provide[Container.screening_service])):
+async def process_query(
+    request: Request,
+    realmId: str,
+    userId: int,
+    leadId: int,
+    sessionId: str,
+    db: Session = Depends(get_db),
+    chat: ScreeningOps = Depends(Provide[Container.screening_service])
+):
     try:
         result = await chat.run_query(request.text)
         return result
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing query: {str(e)}")
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing query: {str(e)}"
+        )
 
-@screeningagent.post("/v2/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision", response_model=KafkaSubmissionResponse,summary="Submit a chat query for Kafka listener")
-async def verify_query(request: Request,realmId:str,userId:int,leadId:int, sessionId:str):
+
+@screeningagent.post(
+    "/v2/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision",
+    response_model=KafkaSubmissionResponse,
+    summary="Submit a chat query for Kafka listener"
+)
+async def verify_query(
+    request: Request,
+    realmId: str,
+    userId: int,
+    leadId: int,
+    sessionId: str
+):
     try:
+        if not sessionId:
+            raise HTTPException(status_code=500, detail="Not a valid session id")
+
         query_text = request.text
         if not query_text:
             raise HTTPException(status_code=400, detail="Missing 'query' in request.")
+
         query_id = random.randint(100000, 999999)
         producer1.send("risk-graph", {
             "query": query_text,
-            "log_id": query_id
+            "user_id": userId,
+            "realm_id": realmId,
+            "lead_id": leadId,
+            "query_id": query_id,
         })
-        return {"message": "Query received. Processing via Kafka...", "query_id":query_id}
-    
+
+        return {
+            "message": "Query received. Processing via Kafka...",
+            "query_id": query_id
+        }
+
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing query: {str(e)}")
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing query: {str(e)}"
+        )

@@ -7,6 +7,7 @@ from langgraph.checkpoint.redis import RedisSaver
 from langgraph.prebuilt import create_react_agent
 from langgraph.pregel import RetryPolicy
 from utils.schema import State
+import uuid
 from langchain.schema import HumanMessage
 
 load_dotenv()
@@ -16,7 +17,11 @@ langfuse_handler = CallbackHandler(
     secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
     public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
     host=os.getenv("LANGFUSE_HOST"),
+    session_id=str(uuid.uuid4())
 )
+
+predefined_run_id = str(uuid.uuid4())
+
 
 class HumanInLoopAgent:
     def __init__(self):
@@ -73,13 +78,15 @@ class HumanInLoopAgent:
                 
             response = await graph.ainvoke(
                     {"messages": [{"role": "user", "content": request}]},
-                    config={"configurable": {"thread_id": "1"}, "callbacks": [langfuse_handler]}
+                    config={"configurable": {"thread_id": "1"}, "callbacks": [langfuse_handler],"run_id": predefined_run_id}
             )
             print(response)
                 
             return {
-                    "agent_response": response["messages"][-1].content
-            }
+                    "agent_response": response["messages"][-1].content,
+                    "trace_id": predefined_run_id,
+                    "session_id":langfuse_handler.session_id
+                }
 
         except Exception as e:
             print("Error in process_query:", str(e))

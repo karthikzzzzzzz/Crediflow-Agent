@@ -15,6 +15,7 @@ from langgraph.pregel import RetryPolicy
 from langfuse.callback import CallbackHandler
 import os 
 from dotenv import load_dotenv
+import uuid
 
 load_dotenv()
 # from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -27,7 +28,10 @@ langfuse_handler = CallbackHandler(
     secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
     public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
     host=os.getenv("LANGFUSE_HOST"),
+    session_id=str(uuid.uuid4())
 )
+
+predefined_run_id = str(uuid.uuid4())
 
 class DataAcquistion:
     def __init__(self):
@@ -76,11 +80,13 @@ class DataAcquistion:
                 print("passed")
         
                 try:
-                    response = graph.invoke({"messages": [{"role": "user", "content": request}]},config={"configurable": {"thread_id": "1"},"callbacks": [langfuse_handler]})
+                    response = graph.invoke({"messages": [{"role": "user", "content": request}]},config={"configurable": {"thread_id": "1"},"callbacks": [langfuse_handler],"run_id": predefined_run_id})
                     
                     print("response",response["messages"][-1].content)
                     return {
-                    "agent_response": response["messages"][-1].content
+                    "agent_response": response["messages"][-1].content,
+                    "trace_id": predefined_run_id,
+                    "session_id":langfuse_handler.session_id
                 }
                 except Exception as e:
                     print(e)

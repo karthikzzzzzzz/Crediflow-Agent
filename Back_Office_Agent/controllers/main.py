@@ -36,9 +36,9 @@ async def chat_request(request: Request,realmId:str,userId:int,leadId:int, sessi
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing query: {str(e)}")
     
-@backagent.get("/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status ", summary="Get chat response by session ID")
-def retrieve_chat_response(sessionId: int,realmId:str,userId:int,leadId:int, db: Session = Depends(get_db)):
-    log = db.query(Logs).filter(Logs.id == sessionId).first()
+@backagent.get("/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status", summary="Get chat response by session ID")
+def retrieve_chat_response(sessionId: int,query_id: int,realmId:str,userId:int,leadId:int, db: Session = Depends(get_db)):
+    log = db.query(Logs).filter(Logs.id == query_id).first()
     if not log:
         raise HTTPException(status_code=404, detail="Log not found")
 

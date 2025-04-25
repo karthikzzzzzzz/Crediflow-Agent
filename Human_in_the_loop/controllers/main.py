@@ -3,7 +3,6 @@ from starlette import status
 from utils.database import engine
 from utils.database import get_db
 from sqlalchemy.orm import Session
-from utils.models import Logs
 import utils.models as models
 from Human_in_the_loop.services.hil import HumanInLoopAgent
 from utils.schema import Request, AgentResponse

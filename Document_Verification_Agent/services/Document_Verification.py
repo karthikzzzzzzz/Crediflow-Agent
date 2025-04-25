@@ -6,7 +6,7 @@ from langgraph.checkpoint.redis import RedisSaver
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
-from config.schema import State
+from utils.schema import State
 from langgraph.graph import StateGraph,START,END
 from langgraph.prebuilt import ToolNode,tools_condition
 from mcp.client.sse import sse_client
@@ -72,7 +72,7 @@ class DocumentVerification:
                     
                     print("response",response["messages"][-1].content)
                     return {
-                    "underwriting_graph_output": response["messages"][-1].content
+                    "agent_response": response["messages"][-1].content
                 }
                 except Exception as e:
                     print(e)
@@ -113,4 +113,4 @@ class DocumentVerification:
                     print("Error during process_query:", str(e))
 
 
-chat1 = DocumentVerification()
+chat = DocumentVerification()

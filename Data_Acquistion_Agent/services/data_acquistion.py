@@ -6,7 +6,7 @@ from langgraph.checkpoint.redis import RedisSaver
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
-from config.schema import State
+from utils.schema import State
 from langgraph.graph import StateGraph,START,END
 from langgraph.prebuilt import ToolNode,tools_condition
 from mcp.client.sse import sse_client
@@ -73,13 +73,14 @@ class DataAcquistion:
         
                 graph = graph_builder.compile(checkpointer=checkpointer)
                 graph.name ="data-acquistion-agent"
+                print("passed")
         
                 try:
                     response = graph.invoke({"messages": [{"role": "user", "content": request}]},config={"configurable": {"thread_id": "1"},"callbacks": [langfuse_handler]})
                     
                     print("response",response["messages"][-1].content)
                     return {
-                    "underwriting_graph_output": response["messages"][-1].content
+                    "agent_response": response["messages"][-1].content
                 }
                 except Exception as e:
                     print(e)
@@ -120,4 +121,4 @@ class DataAcquistion:
                     print("Error during process_query:", str(e))
 
 
-chat1 = DataAcquistion()
+

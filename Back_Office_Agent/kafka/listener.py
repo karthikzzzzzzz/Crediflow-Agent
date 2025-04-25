@@ -1,9 +1,9 @@
 from kafka import KafkaConsumer
 import json
 import asyncio
-from Back_Office_Agent.services.Bank_office import chat
-from config.database import get_db
-from config.models import Logs
+from Back_office_agent.services.back_office import chat
+from utils.database import get_db
+from utils.models import Logs
 from sqlalchemy.orm import Session
 import os
 from dotenv import load_dotenv

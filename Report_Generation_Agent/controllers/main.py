@@ -1,15 +1,17 @@
 from fastapi import HTTPException,APIRouter,Depends
 from starlette import status
 from kafka import KafkaProducer
-from config.database import engine
-from config.database import get_db
+from utils.database import engine
+from utils.database import get_db
 from sqlalchemy.orm import Session
-from config.models import Logs
-import config.models as models
+from utils.models import Logs
+import utils.models as models
 import json
-from config.schema import Request
+from utils.schema import Request, StatusResponse, KafkaSubmissionResponse,AgentResponse
 import random
-from Report_Generation_Agent.services.Report_generation import chat1
+from Report_generation_agent.services.report_generation import ReportGeneration
+from dependency_injector.wiring import inject, Provide
+from Report_generation_agent.dependencies.containers import Container
 import os
 from dotenv import load_dotenv
 
@@ -23,9 +25,9 @@ producer1 = KafkaProducer(
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
 
-@reportagent.get("/v1/users/responses/{log_id}", summary="Get chat response by log ID")
-def retrieve_chat_response(log_id: int, db: Session = Depends(get_db)):
-    log = db.query(Logs).filter(Logs.id == log_id).first()
+@reportagent.get("/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status", response_model=StatusResponse,summary="Get chat response by session ID")
+def retrieve_chat_response(sessionId: int,realmId:str,userId:int,leadId:int, db: Session = Depends(get_db)):
+    log = db.query(Logs).filter(Logs.id == sessionId).first()
     if not log:
         raise HTTPException(status_code=404, detail="Log not found")
 
@@ -34,17 +36,18 @@ def retrieve_chat_response(log_id: int, db: Session = Depends(get_db)):
         "response": log.response
     }  
 
-@reportagent.post("/v1/users/tasks", summary="Process a chat query via internal logic")
-async def process_query(request:Request,db:Session=Depends(get_db)):
+@reportagent.post("/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision", response_model=AgentResponse, summary="Process a chat query via report generation agent")
+@inject
+async def process_query(request:Request,realmId:str,userId:int,leadId:int, sessionId:str,db:Session=Depends(get_db),chat: ReportGeneration = Depends(Provide[Container.report_service])):
     try:
-        result = await chat1.run_query(request.text)
+        result = await chat.run_query(request.text)
         return result
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing query: {str(e)}")
     
 
-@reportagent.post("/v2/users/tasks", summary="Submit a chat query for Kafka processing")
-async def verify_query(request: Request):
+@reportagent.post("/v2/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision",response_model=KafkaSubmissionResponse, summary="Submit a chat query for Kafka listener")
+async def verify_query(request: Request,realmId:str,userId:int,leadId:int, sessionId:str):
     try:
         query_text = request.text
         if not query_text:
@@ -54,7 +57,7 @@ async def verify_query(request: Request):
             "query": query_text,
             "log_id": query_id
         })
-        return {"message": "Query received. Processing via Kafka...", "query_id":{query_id}}
+        return {"message": "Query received. Processing via Kafka...", "query_id":query_id}
     
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing query: {str(e)}")

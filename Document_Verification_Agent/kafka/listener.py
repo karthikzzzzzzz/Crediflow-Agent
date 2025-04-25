@@ -1,11 +1,13 @@
 from kafka import KafkaConsumer
 import json
 import asyncio
-from Document_Verification_Agent.services.Document_Verification import chat1
-from config.database import get_db
-from config.models import Logs
+from Document_verification_agent.services.document_verification import DocumentVerification
+from utils.database import get_db
+from utils.models import Logs
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
+from dependency_injector.wiring import inject, Provide
+from Document_verification_agent.dependencies.containers import Container
 import os
 
 load_dotenv()
@@ -19,21 +21,29 @@ consumer = KafkaConsumer(
     enable_auto_commit=True
 )
 
-async def process_message(message):
+
+@inject
+async def process_message(
+    message: dict,
+    chat: DocumentVerification = Provide[Container.document_service]
+
+):
     db_gen = get_db()
     db: Session = next(db_gen)
     try:
         query = message["query"]
         log_id = message["log_id"]
-        result = await chat1.run_query(query)
-        log_entry = Logs(id=log_id, query=query, response=result["underwriting_graph_output"])
+        result = await chat.run_query(query)
+
+        log_entry = Logs(id=log_id, query=query, response=result["agent_response"])
         db.add(log_entry)
         db.commit()
         db.refresh(log_entry)
 
     except Exception as e:
         print(f"Error processing message: {str(e)}")
-
+    finally:
+        db.close()
 
 async def main():
     print("Kafka listener started...")
@@ -41,4 +51,7 @@ async def main():
         await process_message(message.value)
 
 if __name__ == "__main__":
+    container = Container()
+    container.init_resources()
+    container.wire(modules=[__name__])
     asyncio.run(main())

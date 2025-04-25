@@ -6,7 +6,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.redis import RedisSaver
 from langgraph.prebuilt import create_react_agent
 from langgraph.pregel import RetryPolicy
-from config.schema import State
+from utils.schema import State
 from langchain.schema import HumanMessage
 
 load_dotenv()
@@ -78,7 +78,7 @@ class HumanInLoopAgent:
             print(response)
                 
             return {
-                    "output": response["messages"][-1].content
+                    "agent_response": response["messages"][-1].content
             }
 
         except Exception as e:

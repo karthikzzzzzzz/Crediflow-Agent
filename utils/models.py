@@ -86,3 +86,18 @@ class Logs(Base):
     id=Column(Integer,primary_key=True,index=True,autoincrement=True)
     query=Column(String)
     response=Column(String)
+
+class IntelliAgentSchema(Base):
+    __tablename__ = "intelliagent_logs"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+    realm_id = Column(String(255), nullable=False)
+    lead_id = Column(Integer, nullable=False)
+    session_id = Column(String(255), nullable=False)
+    trace_id = Column(String(255), unique=True, nullable=False)
+    span_id = Column(String(255), nullable=True)
+    query = Column(Text, nullable=False)
+    response = Column(Text, nullable=True)
+    timestamp = Column(TIMESTAMP(timezone=True), server_default=func.now())

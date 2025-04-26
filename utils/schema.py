@@ -33,3 +33,21 @@ class StatusResponse(BaseModel):
 class KafkaSubmissionResponse(BaseModel):
     message: str
     query_id: UUID
+
+class LanggraphResponse(BaseModel):
+    status: str
+    message: str
+    query_id: str
+    trace_id: str
+    session_id: str
+
+class LangStatusResponse(BaseModel):
+    status: str
+    user_id: int
+    realm_id: str
+    lead_id: int
+    session_id: UUID
+    trace_id: Optional[UUID]
+    query: str
+    response: Optional[str]
+    timestamp: datetime

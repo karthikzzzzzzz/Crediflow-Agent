@@ -37,7 +37,7 @@ async def process_message(
 
 
 
-        result = await chat.run_query(query)
+        result = await chat.run_query(query,user_id,realm_id,lead_id)
 
         log_entry = DataAcquisitionSchema(
             user_id=user_id,

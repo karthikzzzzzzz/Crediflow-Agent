@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, TIMESTAMP,func, Integer
+from sqlalchemy import Column, String, Text, TIMESTAMP,func, Integer,JSON,text
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from utils.database import Base
@@ -101,3 +101,16 @@ class IntelliAgentSchema(Base):
     query = Column(Text, nullable=False)
     response = Column(Text, nullable=True)
     timestamp = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+class AgentState(Base):
+    __tablename__ = "intelli_agent"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(String)
+    user_id = Column(String, nullable=False)
+    lead_id = Column(String, nullable=False)
+    realm_id = Column(String, nullable=False)
+    trace_id = Column(String, nullable=True)
+    span_id = Column(String, nullable=True)
+    state = Column(JSON, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))

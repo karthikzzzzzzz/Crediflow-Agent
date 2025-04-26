@@ -38,7 +38,7 @@ async def process_message(
         lead_id = message["lead_id"]
 
 
-        result = await chat.run_query(query)
+        result = await chat.run_query(query,user_id,realm_id,lead_id)
 
         log_entry = DocumentVerificationSchema(
             user_id=user_id,

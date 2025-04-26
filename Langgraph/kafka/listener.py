@@ -1,14 +1,14 @@
 from kafka import KafkaConsumer
 import json
 import asyncio
-from Document_verification_agent.services.document_verification import DocumentVerification
+from Langgraph.dependencies.containers import Container
 from utils.database import get_db
-from utils.models import DocumentVerificationSchema
+from utils.models import EligibilityCheckerSchema
 from sqlalchemy.orm import Session
+import os 
 from dotenv import load_dotenv
 from dependency_injector.wiring import inject, Provide
-from Document_verification_agent.dependencies.containers import Container
-import os
+from Langgraph.services.langgraph import Langgraph
 
 load_dotenv()
 
@@ -21,12 +21,10 @@ consumer = KafkaConsumer(
     enable_auto_commit=True
 )
 
-
 @inject
 async def process_message(
     message: dict,
-    chat: DocumentVerification = Provide[Container.document_service]
-
+    chat: Langgraph = Provide[Container.langgraph_service]
 ):
     db_gen = get_db()
     db: Session = next(db_gen)
@@ -40,7 +38,7 @@ async def process_message(
 
         result = await chat.run_query(query)
 
-        log_entry = DocumentVerificationSchema(
+        log_entry = EligibilityCheckerSchema(
             user_id=user_id,
             realm_id=realm_id,
             lead_id=lead_id,
@@ -48,12 +46,13 @@ async def process_message(
             trace_id=result["trace_id"],
             query_id=query_id,
             query=query,
-            span_id= result["span_id"],
+            span_id=result["span_id"],
             response=result["agent_response"]
         )
         db.add(log_entry)
         db.commit()
         db.refresh(log_entry)
+
 
     except Exception as e:
         print(f"Error processing message: {str(e)}")

@@ -36,6 +36,7 @@ async def process_message(
         lead_id = message["lead_id"]
 
 
+
         result = await chat.run_query(query)
 
         log_entry = DataAcquisitionSchema(
@@ -46,6 +47,7 @@ async def process_message(
             trace_id=result["trace_id"],
             query_id=query_id,
             query=query,
+            span_id=result["span_id"],
             response=result["agent_response"]
         )
         db.add(log_entry)

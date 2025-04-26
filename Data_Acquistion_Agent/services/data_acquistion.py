@@ -28,7 +28,10 @@ langfuse_handler = CallbackHandler(
     secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
     public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
     host=os.getenv("LANGFUSE_HOST"),
-    session_id=str(uuid.uuid4())
+    session_id=str(uuid.uuid4()),
+    metadata={
+        "agent_id": "data_acquisition_agent"
+    }
 )
 
 predefined_run_id = str(uuid.uuid4())
@@ -77,7 +80,8 @@ class DataAcquistion:
         
                 graph = graph_builder.compile(checkpointer=checkpointer)
                 graph.name ="data-acquistion-agent"
-                print("passed")
+                
+            
         
                 try:
                     response = graph.invoke({"messages": [{"role": "user", "content": request}]},config={"configurable": {"thread_id": "1"},"callbacks": [langfuse_handler],"run_id": predefined_run_id})
@@ -86,7 +90,8 @@ class DataAcquistion:
                     return {
                     "agent_response": response["messages"][-1].content,
                     "trace_id": predefined_run_id,
-                    "session_id":langfuse_handler.session_id
+                    "session_id":langfuse_handler.session_id,
+                    "span_id": langfuse_handler.metadata.get("agent_id")
                 }
                 except Exception as e:
                     print(e)

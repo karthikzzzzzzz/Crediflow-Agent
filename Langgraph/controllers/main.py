@@ -1,35 +1,36 @@
-from fastapi import HTTPException, APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
-from kafka import KafkaProducer
-from utils.database import engine, get_db
 from sqlalchemy.orm import Session
-from utils.models import ScreeningOpsSchema  
-import utils.models as models
-import json
-from utils.schema import Request, StatusResponse, KafkaSubmissionResponse, AgentResponse
-import uuid
-from Screening_ops_maker_agent.services.screening_ops import ScreeningOps
 from dependency_injector.wiring import inject, Provide
+import uuid
+import json
 import os
 from dotenv import load_dotenv
-from Screening_ops_maker_agent.dependencies.containers import Container
+from kafka import KafkaProducer
+
+from utils.database import engine, get_db
+from utils.models import IntelliAgentSchema 
+from utils.schema import Request, StatusResponse, KafkaSubmissionResponse, AgentResponse
+from Langgraph.dependencies.containers import Container
+from Langgraph.services.langgraph import Langgraph  
 
 load_dotenv()
-screeningagent = APIRouter()
+intelliagent = APIRouter()
 
+from utils import models
 models.Base.metadata.create_all(engine)
 
-producer1 = KafkaProducer(
+producer = KafkaProducer(
     bootstrap_servers=[os.getenv("KAFKA_HOST")],
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
 
-@screeningagent.get(
-    "/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status",
+@intelliagent.get(
+    "/v1/intelli-agent/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status",
     response_model=StatusResponse,
-    summary="Get chat response by query ID"
+    summary="Get IntelliAgent response by query ID"
 )
-def retrieve_chat_response(
+def retrieve_intelliagent_response(
     sessionId: str,
     realmId: str,
     userId: int,
@@ -37,7 +38,7 @@ def retrieve_chat_response(
     query_id: str,
     db: Session = Depends(get_db)
 ):
-    log = db.query(ScreeningOpsSchema).filter(ScreeningOpsSchema.query_id == query_id).first()
+    log = db.query(IntelliAgentSchema).filter(IntelliAgentSchema.query_id == query_id).first()
     if not log:
         raise HTTPException(status_code=404, detail=f"Query ID {query_id} not found.")
 
@@ -54,20 +55,20 @@ def retrieve_chat_response(
         "timestamp": log.timestamp,
     }
 
-@screeningagent.post(
-    "/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision",
+@intelliagent.post(
+    "/v1/intelli-agent/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision",
     response_model=AgentResponse,
-    summary="Process a chat query via Screening Ops agent"
+    summary="Process a query via IntelliAgentFlow"
 )
 @inject
-async def process_query(
+async def process_intelliagent_query(
     request: Request,
     realmId: str,
     userId: int,
     leadId: int,
     sessionId: str,
     db: Session = Depends(get_db),
-    chat: ScreeningOps = Depends(Provide[Container.screening_service])
+    chat: Langgraph = Depends(Provide[Container.langgraph_service])
 ):
     try:
         result = await chat.run_query(request.text)
@@ -78,13 +79,12 @@ async def process_query(
             detail=f"Error processing query: {str(e)}"
         )
 
-
-@screeningagent.post(
-    "/v2/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision",
+@intelliagent.post(
+    "/v2/intelli-agent/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision",
     response_model=KafkaSubmissionResponse,
-    summary="Submit a chat query for Kafka listener"
+    summary="Submit a query for IntelliAgent Kafka listener"
 )
-async def verify_query(
+async def submit_intelliagent_query(
     request: Request,
     realmId: str,
     userId: int,
@@ -93,14 +93,14 @@ async def verify_query(
 ):
     try:
         if not sessionId:
-            raise HTTPException(status_code=500, detail="Not a valid session id")
+            raise HTTPException(status_code=500, detail="Invalid session id")
 
         query_text = request.text
         if not query_text:
             raise HTTPException(status_code=400, detail="Missing 'query' in request.")
 
         query_id = str(uuid.uuid4())
-        producer1.send("risk-graph", {
+        producer.send("intelli-agent-topic", {
             "query": query_text,
             "user_id": userId,
             "realm_id": realmId,
@@ -116,5 +116,5 @@ async def verify_query(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing query: {str(e)}"
+            detail=f"Error submitting query: {str(e)}"
         )

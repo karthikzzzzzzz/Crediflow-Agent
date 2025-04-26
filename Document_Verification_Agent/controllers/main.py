@@ -4,12 +4,12 @@ from kafka import KafkaProducer
 from utils.database import engine
 from utils.database import get_db
 from sqlalchemy.orm import Session
-from utils.models import ReportGenerationSchema  
+from utils.models import DocumentVerificationSchema
 import utils.models as models
 from dependency_injector.wiring import inject, Provide
 import json
 from utils.schema import Request, StatusResponse, KafkaSubmissionResponse, AgentResponse
-import random
+import uuid
 import os
 from dotenv import load_dotenv
 from Document_verification_agent.services.document_verification import DocumentVerification
@@ -35,10 +35,10 @@ def retrieve_chat_response(
     realmId: str,
     userId: int,
     leadId: int,
-    query_id: int,
+    query_id: str,
     db: Session = Depends(get_db)
 ):
-    log = db.query(ReportGenerationSchema).filter(ReportGenerationSchema.query_id == query_id).first()
+    log = db.query(DocumentVerificationSchema).filter(DocumentVerificationSchema.query_id == query_id).first()
     if not log:
         raise HTTPException(status_code=404, detail=f"Query ID {query_id} not found.")
 
@@ -101,7 +101,7 @@ async def verify_query(
         if not query_text:
             raise HTTPException(status_code=400, detail="Missing 'query' in request.")
 
-        query_id = random.randint(100000, 999999)
+        query_id = str(uuid.uuid4())
         producer1.send("risk-graph", {
             "query": query_text,
             "user_id": userId,

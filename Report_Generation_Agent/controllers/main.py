@@ -7,7 +7,7 @@ from utils.models import ReportGenerationSchema
 import utils.models as models
 import json
 from utils.schema import Request, StatusResponse, KafkaSubmissionResponse, AgentResponse
-import random
+import uuid
 import os
 from dotenv import load_dotenv
 from Report_generation_agent.services.report_generation import ReportGeneration
@@ -34,7 +34,7 @@ def retrieve_chat_response(
     realmId: str,
     userId: int,
     leadId: int,
-    query_id: int,
+    query_id: str,
     db: Session = Depends(get_db)
 ):
     log = db.query(ReportGenerationSchema).filter(ReportGenerationSchema.query_id == query_id).first()
@@ -100,7 +100,7 @@ async def verify_query(
         if not query_text:
             raise HTTPException(status_code=400, detail="Missing 'query' in request.")
 
-        query_id = random.randint(100000, 999999)
+        query_id = str(uuid.uuid4())
         producer1.send("risk-graph", {
             "query": query_text,
             "user_id": userId,

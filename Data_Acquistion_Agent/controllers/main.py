@@ -9,7 +9,7 @@ import utils.models as models
 from dependency_injector.wiring import inject, Provide
 import json
 from utils.schema import Request, StatusResponse, KafkaSubmissionResponse,AgentResponse
-import random
+import uuid
 import os 
 from dotenv import load_dotenv
 from Data_acquistion_agent.services.data_acquistion import DataAcquistion
@@ -27,7 +27,7 @@ producer1 = KafkaProducer(
 
 
 @dataagent.get("/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status", response_model=StatusResponse, summary="Get chat response by log ID")
-def retrieve_chat_response(sessionId: str,realmId:str,userId:int,leadId:int,query_id:int, db: Session = Depends(get_db)):
+def retrieve_chat_response(sessionId: str,realmId:str,userId:int,leadId:int,query_id:str, db: Session = Depends(get_db)):
     log = db.query(DataAcquisitionSchema).filter(DataAcquisitionSchema.query_id == query_id).first()
     if not log:
         raise HTTPException(status_code=404, detail="Log not found")
@@ -70,7 +70,7 @@ async def verify_query(request: Request,realmId:str,userId:int,leadId:int, sessi
         if not query_text:
             raise HTTPException(status_code=400, detail="Missing 'query' in request.")
 
-        query_id = random.randint(100000, 999999)
+        query_id = str(uuid.uuid4())
         producer1.send("risk-graph", {
             "query": query_text,
             "user_id": userId,

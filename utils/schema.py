@@ -16,13 +16,14 @@ class AgentResponse(BaseModel):
     agent_response: str
     trace_id: str
     session_id: str
+    span_id:str
 
 class StatusResponse(BaseModel):
     status: str
     user_id: int
     realm_id: str
     lead_id: int
-    query_id: int
+    query_id: UUID
     session_id: UUID
     trace_id: Optional[UUID]
     query: str
@@ -31,4 +32,4 @@ class StatusResponse(BaseModel):
 
 class KafkaSubmissionResponse(BaseModel):
     message: str
-    query_id: int
+    query_id: UUID

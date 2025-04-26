@@ -24,7 +24,7 @@ consumer = KafkaConsumer(
 @inject
 async def process_message(
     message: dict,
-    chat: EligibilityCheck  = Provide[Container.data_acquisition_service]
+    chat: EligibilityCheck  = Provide[Container.eligibility_service]
 ):
     db_gen = get_db()
     db: Session = next(db_gen)
@@ -46,6 +46,7 @@ async def process_message(
             trace_id=result["trace_id"],
             query_id=query_id,
             query=query,
+            span_id=result["span_id"],
             response=result["agent_response"]
         )
         db.add(log_entry)

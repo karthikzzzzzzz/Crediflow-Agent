@@ -17,7 +17,10 @@ langfuse_handler = CallbackHandler(
     secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
     public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
     host=os.getenv("LANGFUSE_HOST"),
-    session_id=str(uuid.uuid4())
+    session_id=str(uuid.uuid4()),
+    metadata={
+        "agent_id":"hil"
+    }
 )
 
 predefined_run_id = str(uuid.uuid4())
@@ -85,7 +88,8 @@ class HumanInLoopAgent:
             return {
                     "agent_response": response["messages"][-1].content,
                     "trace_id": predefined_run_id,
-                    "session_id":langfuse_handler.session_id
+                    "session_id":langfuse_handler.session_id,
+                    "span_id":langfuse_handler.metadata.get("agent_id")
                 }
 
         except Exception as e:

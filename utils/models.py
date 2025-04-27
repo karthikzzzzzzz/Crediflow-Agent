@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, TIMESTAMP,func, Integer,JSON,text
+from sqlalchemy import Column, String, Text, TIMESTAMP,func, Integer,JSON,text,ARRAY,Float
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from utils.database import Base
@@ -114,3 +114,45 @@ class AgentState(Base):
     state = Column(JSON, nullable=False)
     created_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     updated_at = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP"))
+
+class AgentSemanticMemory(Base):
+    __tablename__ = "agent_semantic_memory"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(Integer, nullable=False)
+    realm_id = Column(String(64))
+    session_id = Column(String(64))
+    trace_id = Column(String(64))
+    span_id = Column(String(64))
+    case_id = Column(String(64))
+    key = Column(Text, nullable=False)
+    value = Column(Text)
+    source = Column(Text)
+    vector = Column(ARRAY(Float))
+    tags = Column(ARRAY(Text))
+    last_updated = Column(TIMESTAMP, nullable=False)
+
+class AgentProceduralMemory(Base):
+    __tablename__ = "agent_procedural_memory"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    task_name = Column(Text)
+    steps = Column(JSON)
+    trigger_conditions = Column(JSON)
+    created_by = Column(Text)
+    created_at = Column(TIMESTAMP)
+    case_id = Column(String(64))
+
+class EpisodicMemory(Base):
+    __tablename__ = "episodic_memory"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(Integer, nullable=False)
+    realm_id = Column(String(64))
+    case_id = Column(String(64))
+    session_id = Column(String(64))
+    trace_id = Column(String(64))
+    span_id = Column(String(64))
+    timestamp = Column(TIMESTAMP)
+    summary = Column(Text)
+    raw_state = Column(JSON)

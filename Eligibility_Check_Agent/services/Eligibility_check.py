@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
-from langgraph.checkpoint.redis import RedisSaver
+from langgraph.checkpoint.redis import AsyncRedisSaver
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
@@ -53,43 +53,24 @@ class EligibilityCheck:
         compressed_state = json.dumps(state, default=str)
         redis_client.set(redis_key, compressed_state, ex=ttl)
 
-    def persist_state_to_longterm(
-        self,
-        session_id: str,
-        user_id: str,
-        realm_id: str,
-        lead_id: int,
-        trace_id: Optional[str],
-        span_id: Optional[str],
-        state: dict
-    ):
-        conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
-        cursor = conn.cursor()
-        new_id = str(uuid.uuid4())
-        cursor.execute(
-            """
-            INSERT INTO intelli_agent (id, session_id, user_id, lead_id, realm_id, trace_id, span_id, state, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
-            """,
-            (new_id, session_id, user_id, lead_id, realm_id, trace_id, span_id, json.dumps(state))
-        )
-        conn.commit()
-        cursor.close()
-        conn.close()
+    # def persist_state_to_longterm(self, session_id: str, user_id: str, realm_id: str, lead_id: int, trace_id: Optional[str], span_id: Optional[str], state: dict):
+    #     conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
+    #     cursor = conn.cursor()
+    #     new_id = str(uuid.uuid4())
+    #     cursor.execute(
+    #         """
+    #         INSERT INTO intelli_agent (id, session_id, user_id, lead_id, realm_id, trace_id, span_id, state, created_at)
+    #         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+    #         """,
+    #         (new_id, session_id, user_id, lead_id, realm_id, trace_id, span_id, json.dumps(state))
+    #     )
+    #     conn.commit()
+    #     cursor.close()
+    #     conn.close()
 
-    def save_state(
-        self,
-        session_id: str,
-        user_id: str,
-        realm_id: str,
-        lead_id: int,
-        trace_id: Optional[str],
-        span_id: Optional[str],
-        state: dict,
-        ttl: int = 600
-    ):
+    def save_state(self, session_id: str, user_id: str, realm_id: str, lead_id: int, trace_id: Optional[str], span_id: Optional[str], state: dict, ttl: int = 600):
         self.persist_state_to_shortterm(session_id, state, ttl=ttl)
-        self.persist_state_to_longterm(session_id, user_id, realm_id, lead_id, trace_id, span_id, state)
+        # self.persist_state_to_longterm(session_id, user_id, realm_id, lead_id, trace_id, span_id, state)
 
     def serialize_messages(self, messages):
         serialized = []
@@ -101,6 +82,81 @@ class EligibilityCheck:
             })
         return serialized
 
+    def persist_procedural_memory(self, case_id: Optional[str], task_name: str, steps: Optional[list], trigger_conditions: Optional[dict], created_by: str = "eligibility_checker_agent"):
+        conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
+        cursor = conn.cursor()
+
+        now = datetime.utcnow()
+        procedural_id = str(uuid.uuid4())
+
+        cursor.execute(
+            """
+            INSERT INTO agent_procedural_memory (id, task_name, steps, trigger_conditions, created_by, created_at, case_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                procedural_id,
+                task_name,
+                json.dumps(steps or []),
+                json.dumps(trigger_conditions or {}),
+                created_by,
+                now,
+                case_id
+            )
+        )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+    def persist_semantic_memory(self, user_id: int, realm_id: str, session_id: str, trace_id: Optional[str], span_id: Optional[str], case_id: Optional[str], key: str, value: Optional[str] = None, source: Optional[str] = None, vector: Optional[list] = None, tags: Optional[list] = None):
+        conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
+        cursor = conn.cursor()
+
+        semantic_id = str(uuid.uuid4())
+
+        if value is None:
+            value = "eligibility"
+        if source is None:
+            source = "agent_output"
+        if tags is None:
+            tags = ["underwriting"]
+        if vector is None:
+            vector = [0.0] * 1536
+
+        cursor.execute(
+            """
+            INSERT INTO agent_semantic_memory (
+                id, user_id, realm_id, session_id, trace_id, span_id, case_id,
+                key, value, source, vector, tags, last_updated
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            """,
+            (semantic_id, user_id, realm_id, session_id, trace_id, span_id, case_id, key, value, source, vector, tags)
+        )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+    def persist_episodic_memory(self, user_id: int, realm_id: str, session_id: str, trace_id: Optional[str], span_id: Optional[str], case_id: Optional[str], summary: str, raw_state: dict):
+        conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
+        cursor = conn.cursor()
+
+        episodic_id = str(uuid.uuid4())
+        now = datetime.utcnow()
+
+        cursor.execute(
+            """
+            INSERT INTO episodic_memory (id, user_id, realm_id, case_id, session_id, trace_id, span_id, timestamp, summary, raw_state)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (episodic_id, user_id, realm_id, case_id, session_id, trace_id, span_id, now, summary, json.dumps(raw_state))
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+
     async def process(self, session: ClientSession, request: str, memory, user_id: int, realm_id: str, lead_id: int):
         async with MultiServerMCPClient({
             "server": {
@@ -108,8 +164,10 @@ class EligibilityCheck:
                 "transport": "sse",
             }
         }) as client:
-            with RedisSaver.from_conn_string(os.getenv("REDIS_URI")) as checkpointer:
-                checkpointer.setup()
+            async with AsyncRedisSaver.from_conn_string(os.getenv("REDIS_URI")) as checkpointer:
+                await checkpointer.checkpoints_index.create(overwrite=False)
+                await checkpointer.checkpoint_blobs_index.create(overwrite=False)
+                await checkpointer.checkpoint_writes_index.create(overwrite=False)
 
                 graph_builder = StateGraph(State)
 
@@ -126,14 +184,14 @@ class EligibilityCheck:
                 graph_builder.add_edge("document-agent", END)
 
                 graph = graph_builder.compile(checkpointer=checkpointer)
-                graph.name = "eligibility-agent"
+                graph.name = "eligibility-check-agent"
 
                 try:
                     session_id = langfuse_handler.session_id
                     trace_id = predefined_run_id
                     span_id = langfuse_handler.metadata.get("agent_id")
 
-                    response = graph.invoke(
+                    response = await graph.ainvoke(
                         {"messages": [{"role": "user", "content": request}]},
                         config={
                             "configurable": {"thread_id": "1"},
@@ -146,6 +204,9 @@ class EligibilityCheck:
                         "messages": self.serialize_messages(response["messages"])
                     }
 
+                    steps = []
+                    triggers = {}
+
                     self.save_state(
                         session_id=session_id,
                         user_id=user_id,
@@ -155,6 +216,33 @@ class EligibilityCheck:
                         span_id=span_id,
                         state=processed_response,
                         ttl=600
+                    )
+
+                    self.persist_episodic_memory(
+                        user_id=user_id,
+                        realm_id=realm_id,
+                        session_id=session_id,
+                        trace_id=trace_id,
+                        span_id=span_id,
+                        case_id=str(uuid.uuid4()),
+                        summary=response["messages"][-1].content,
+                        raw_state=processed_response
+                    )
+                    self.persist_semantic_memory(
+                        user_id=user_id,
+                        realm_id=realm_id,
+                        session_id=session_id,
+                        trace_id=trace_id,
+                        span_id=span_id,
+                        case_id=str(uuid.uuid4()),
+                        key=str(uuid.uuid4())
+                    )
+                    self.persist_procedural_memory(
+                        case_id=str(uuid.uuid4()),
+                        task_name="eligibility_check_task",
+                        steps=steps,
+                        trigger_conditions=triggers,
+                        created_by="eligibility_checker_agent"
                     )
 
                     return {
@@ -185,4 +273,4 @@ class EligibilityCheck:
                     await session.initialize()
                     return await self.process(session, query, memory, user_id, realm_id, lead_id)
                 except Exception as e:
-                    print("Error during run_query:", str(e))
+                    print("Error during process_query:", str(e))

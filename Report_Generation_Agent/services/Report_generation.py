@@ -184,14 +184,14 @@ class ReportGeneration:
                 await checkpointer.checkpoints_index.create(overwrite=False)
                 await checkpointer.checkpoint_blobs_index.create(overwrite=False)
                 await checkpointer.checkpoint_writes_index.create(overwrite=False)
-                tools = load_mcp_tools(session)
+                tools = await load_mcp_tools(session)
                 graph_builder = StateGraph(State)
-                agent = create_react_agent(self.llm, tools=tools, checkpointer=checkpointer)
+                agent = create_react_agent(self.llm,tools, checkpointer=checkpointer)
 
                 graph_builder.add_node("document-agent", agent, retry=RetryPolicy(max_attempts=5))
                 graph_builder.add_edge(START, "document-agent")
 
-                tool_node = ToolNode(tools=client.get_tools())
+                tool_node = ToolNode(tools=tools)
                 graph_builder.add_node("tools", tool_node.ainvoke)
 
                 graph_builder.add_conditional_edges("document-agent", tools_condition)

@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
-from langgraph.checkpoint.redis import RedisSaver
+from langgraph.checkpoint.redis import AsyncRedisSaver
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
@@ -203,20 +203,22 @@ class DataAcquistion:
             # POSTGRES_CONN_STRING = "postgresql://postgres:123456@localhost:5433/MCP-Agent"
             # checkpointer = AsyncPostgresSaver(conn_str=POSTGRES_CONN_STRING)
             # checkpointer.setup()
-            with RedisSaver.from_conn_string(os.getenv("REDIS_URI")) as checkpointer:
-                checkpointer.setup()
+            async with AsyncRedisSaver.from_conn_string(os.getenv("REDIS_URI")) as checkpointer:
+                await checkpointer.checkpoints_index.create(overwrite=False)
+                await checkpointer.checkpoint_blobs_index.create(overwrite=False)
+                await checkpointer.checkpoint_writes_index.create(overwrite=False)
         
-                
+                tools = await load_mcp_tools(session)
             
                 graph_builder=StateGraph(State)
             
-                agent = create_react_agent(self.llm,client.get_tools(),checkpointer=checkpointer)
+                agent = create_react_agent(self.llm,tools,checkpointer=checkpointer)
                 
                 
 
                 graph_builder.add_node("document-agent",agent)
                 graph_builder.add_edge(START,"document-agent")
-                tool_node = ToolNode(tools=client.get_tools())
+                tool_node = ToolNode(tools=tools)
                 graph_builder.add_node("tools", tool_node.ainvoke)
 
                 graph_builder.add_conditional_edges("document-agent", tools_condition)

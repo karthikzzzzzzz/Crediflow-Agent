@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
-from langgraph.checkpoint.redis import AsyncRedisSaver
+from langgraph.checkpoint.redis import RedisSaver
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
@@ -12,7 +12,6 @@ from langgraph.graph import StateGraph,START,END
 from langgraph.prebuilt import ToolNode,tools_condition
 from mcp.client.sse import sse_client
 from mcp import ClientSession
-from langgraph.pregel import RetryPolicy
 from langfuse.callback import CallbackHandler
 import os 
 import redis 
@@ -21,13 +20,13 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 import json
 import uuid
-from typing import Optional
+from typing import Optional, Dict
+from langchain_mcp_adapters.tools import load_mcp_tools
 
 load_dotenv()
 # from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 
-RetryPolicy()
 
 
 langfuse_handler = CallbackHandler(
@@ -59,28 +58,46 @@ class DataAcquistion:
         redis_client.set(redis_key, compressed_state, ex=ttl)
 
 
-    # def persist_state_to_longterm(self,session_id: str,user_id: str,realm_id: str,lead_id:int,trace_id: Optional[str],span_id: Optional[str],state: dict):
-        
-    #     conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
-     
-    #     cursor = conn.cursor()
-    #     new_id = str(uuid.uuid4()) 
-    #     cursor.execute(
-    #         """
-    #         INSERT INTO intelli_agent (id, session_id, user_id, lead_id, realm_id, trace_id, span_id, state, created_at)
-    #         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
-    #         """,
-    #         (new_id, session_id, user_id, lead_id, realm_id, trace_id, span_id, json.dumps(state))
-    #     )
+    def persist_state_to_longterm(self, session_id: str, user_id: str, realm_id: str, lead_id: int, trace_id: Optional[str], span_id: Optional[str], state: dict):
+        conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
+        cursor = conn.cursor()
+        new_id = str(uuid.uuid4())
+        cursor.execute(
+            """
+            INSERT INTO intelli_agent (id, session_id, user_id, lead_id, realm_id, trace_id, span_id, state, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            """,
+            (new_id, session_id, user_id, lead_id, realm_id, trace_id, span_id, json.dumps(state))
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
 
-    #     conn.commit()
-    #     cursor.close()
-    #     conn.close()
+    def load_state_from_longterm(self,session_id: str,user_id: str,realm_id: str,) -> Optional[Dict]:
+        conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT state_json
+            FROM intelli_agent
+            WHERE session_id = %s AND user_id = %s AND realm_id = %s
+            """,
+            (session_id, user_id, realm_id),
+        )
+        result = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if result:
+            return result[0]  
+        return None
 
 
     def save_state(self,session_id: str,user_id: str,realm_id: str,lead_id:int,trace_id: Optional[str],span_id: Optional[str],state: dict,ttl: int = 600):
         self.persist_state_to_shortterm(session_id, state, ttl=ttl)
-        # self.persist_state_to_longterm(session_id, user_id, realm_id, lead_id,trace_id,span_id, state)
+        self.persist_state_to_longterm(session_id, user_id, realm_id, lead_id,trace_id,span_id, state)
 
     def serialize_messages(self,messages):
         serialized = []
@@ -186,19 +203,18 @@ class DataAcquistion:
             # POSTGRES_CONN_STRING = "postgresql://postgres:123456@localhost:5433/MCP-Agent"
             # checkpointer = AsyncPostgresSaver(conn_str=POSTGRES_CONN_STRING)
             # checkpointer.setup()
-            async with AsyncRedisSaver.from_conn_string(os.getenv("REDIS_URI")) as checkpointer:
-                await checkpointer.checkpoints_index.create(overwrite=False)
-                await checkpointer.checkpoint_blobs_index.create(overwrite=False)
-                await checkpointer.checkpoint_writes_index.create(overwrite=False)
+            with RedisSaver.from_conn_string(os.getenv("REDIS_URI")) as checkpointer:
+                checkpointer.setup()
+        
+                
             
-    
                 graph_builder=StateGraph(State)
             
                 agent = create_react_agent(self.llm,client.get_tools(),checkpointer=checkpointer)
                 
                 
 
-                graph_builder.add_node("document-agent",agent,retry=RetryPolicy(max_attempts=5))
+                graph_builder.add_node("document-agent",agent)
                 graph_builder.add_edge(START,"document-agent")
                 tool_node = ToolNode(tools=client.get_tools())
                 graph_builder.add_node("tools", tool_node.ainvoke)
@@ -206,6 +222,7 @@ class DataAcquistion:
                 graph_builder.add_conditional_edges("document-agent", tools_condition)
                 graph_builder.add_edge("tools", "document-agent")
                 graph_builder.add_edge("document-agent", END)
+
 
         
                 graph = graph_builder.compile(checkpointer=checkpointer)
@@ -217,7 +234,7 @@ class DataAcquistion:
                     span_id = langfuse_handler.metadata.get("agent_id") 
 
                 
-                    response = await graph.ainvoke({"messages": [{"role": "user", "content": request}]},config={"configurable": {"thread_id": "1"},"callbacks": [langfuse_handler],"run_id": predefined_run_id})
+                    response = graph.invoke({"messages": [{"role": "user", "content": request}]},config={"configurable": {"thread_id": "1"},"callbacks": [langfuse_handler],"run_id": predefined_run_id})
                     
                     processed_response = {
                             "messages": self.serialize_messages(response["messages"])

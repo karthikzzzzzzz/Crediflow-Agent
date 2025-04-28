@@ -16,3 +16,4 @@ mcp
 python-dotenv
 psycopg2
 langchain-core
+lagnchain-mcp-adapters

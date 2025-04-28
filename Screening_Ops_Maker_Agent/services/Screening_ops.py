@@ -14,12 +14,13 @@ from mcp.client.sse import sse_client
 from mcp import ClientSession
 from langgraph.pregel import RetryPolicy
 from langfuse.callback import CallbackHandler
+from langchain_mcp_adapters.tools import load_mcp_tools
 import os
 import redis
 from dotenv import load_dotenv
 import json
 import uuid
-from typing import Optional
+from typing import Optional,Dict
 
 load_dotenv()
 
@@ -53,24 +54,45 @@ class ScreeningOps:
         compressed_state = json.dumps(state, default=str)
         redis_client.set(redis_key, compressed_state, ex=ttl)
 
-    # def persist_state_to_longterm(self, session_id: str, user_id: int, realm_id: str, lead_id: int, trace_id: Optional[str], span_id: Optional[str], state: dict):
-    #     conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
-    #     cursor = conn.cursor()
-    #     new_id = str(uuid.uuid4())
-    #     cursor.execute(
-    #         """
-    #         INSERT INTO intelli_agent (id, session_id, user_id, lead_id, realm_id, trace_id, span_id, state, created_at)
-    #         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
-    #         """,
-    #         (new_id, session_id, user_id, lead_id, realm_id, trace_id, span_id, json.dumps(state))
-    #     )
-    #     conn.commit()
-    #     cursor.close()
-    #     conn.close()
+    def persist_state_to_longterm(self, session_id: str, user_id: int, realm_id: str, lead_id: int, trace_id: Optional[str], span_id: Optional[str], state: dict):
+        conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
+        cursor = conn.cursor()
+        new_id = str(uuid.uuid4())
+        cursor.execute(
+            """
+            INSERT INTO intelli_agent (id, session_id, user_id, lead_id, realm_id, trace_id, span_id, state, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            """,
+            (new_id, session_id, user_id, lead_id, realm_id, trace_id, span_id, json.dumps(state))
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+    def load_state_from_longterm(self,session_id: str,user_id: str,realm_id: str,) -> Optional[Dict]:
+        conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT state_json
+            FROM intelli_agent
+            WHERE session_id = %s AND user_id = %s AND realm_id = %s
+            """,
+            (session_id, user_id, realm_id),
+        )
+        result = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if result:
+            return result[0]  
+        return None
 
     def save_state(self, session_id: str, user_id: int, realm_id: str, lead_id: int, trace_id: Optional[str], span_id: Optional[str], state: dict, ttl: int = 600):
         self.persist_state_to_shortterm(session_id, state, ttl=ttl)
-        # self.persist_state_to_longterm(session_id, user_id, realm_id, lead_id, trace_id, span_id, state)
+        self.persist_state_to_longterm(session_id, user_id, realm_id, lead_id, trace_id, span_id, state)
 
     def serialize_messages(self, messages):
         serialized = []
@@ -170,10 +192,10 @@ class ScreeningOps:
                 await checkpointer.checkpoints_index.create(overwrite=False)
                 await checkpointer.checkpoint_blobs_index.create(overwrite=False)
                 await checkpointer.checkpoint_writes_index.create(overwrite=False)
-
+                tools = await load_mcp_tools(session)
                 graph_builder = StateGraph(State)
 
-                agent = create_react_agent(self.llm, client.get_tools(), checkpointer=checkpointer)
+                agent = create_react_agent(self.llm, tools=tools, checkpointer=checkpointer)
 
                 graph_builder.add_node("screening-agent", agent, retry=RetryPolicy(max_attempts=5))
                 graph_builder.add_edge(START, "screening-agent")

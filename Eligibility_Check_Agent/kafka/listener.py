@@ -12,13 +12,14 @@ from Eligibility_check_agent.dependencies.containers import Container
 
 load_dotenv()
 
+# Create a Kafka consumer to listen to the 'risk-graph' topic
 consumer = KafkaConsumer(
     'risk-graph',
-    bootstrap_servers=[os.getenv("KAFKA_HOST")],
-    group_id='risk-graph-group',
-    value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-    auto_offset_reset='earliest',
-    enable_auto_commit=True
+    bootstrap_servers=[os.getenv("KAFKA_HOST")],  # Kafka server address from environment
+    group_id='risk-graph-group',                  # Consumer group ID
+    value_deserializer=lambda m: json.loads(m.decode('utf-8')),  # Deserialize messages from JSON
+    auto_offset_reset='earliest',                 # Start reading from the earliest offset
+    enable_auto_commit=True                       # Commit offsets automatically
 )
 
 @inject
@@ -26,18 +27,21 @@ async def process_message(
     message: dict,
     chat: EligibilityCheck  = Provide[Container.eligibility_service]
 ):
+    # Get a database session
     db_gen = get_db()
     db: Session = next(db_gen)
     try:
+        # Extract necessary fields from the incoming Kafka message
         query = message["query"]
         query_id = message["query_id"]
         realm_id = message["realm_id"]
         user_id = message["user_id"]
         lead_id = message["lead_id"]
 
-
+        # Call the DataAcquisition agent to process the query
         result = await chat.run_query(query,user_id,realm_id,lead_id)
 
+        # Prepare a database log entry with the agent's response and metadata
         log_entry = EligibilityCheckerSchema(
             user_id=user_id,
             realm_id=realm_id,
@@ -49,6 +53,7 @@ async def process_message(
             span_id=result["span_id"],
             response=result["agent_response"]
         )
+        # Add and commit the log entry to the database
         db.add(log_entry)
         db.commit()
         db.refresh(log_entry)
@@ -61,10 +66,12 @@ async def process_message(
 
 async def main():
     print("Kafka listener started...")
+    # Continuously listen to Kafka for new messages
     for message in consumer:
         await process_message(message.value)
 
 if __name__ == "__main__":
+    # Initialize the dependency injection container
     container = Container()
     container.init_resources()
     container.wire(modules=[__name__])

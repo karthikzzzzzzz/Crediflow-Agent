@@ -45,6 +45,7 @@ app = FastAPI(
     title="Agents",
     description="This API routes requests to different agent.",
 )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

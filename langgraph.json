@@ -1,10 +1,10 @@
 {
     "dependencies":["."],
     "graphs":{
-        "data-acquistion-agent":"./Data_Acquistion_Agent/services/data_acquistion.py:graph",
-        "document-agent":"./Document_Verification_Agent/services/Document_Verification.py:graph", 
-        "eligibility-agent":"./Eligibility_Check_Agent/services/Eligibility_check.py:graph",
-        "report-agent":"./Report_Generation_Agent/services/Report_generation.py:graph",
-        "screening-agent":"./Screening_Ops_Maker_Agent/services/Screening_ops.py:graph"
+        "data-acquistion-agent":"./Data_acquistion_agent/services/data_acquistion.py:graph",
+        "document-agent":"./Document_verification_agent/services/Document_Verification.py:graph", 
+        "eligibility-agent":"./Eligibility_check_agent/services/Eligibility_check.py:graph",
+        "report-agent":"./Report_generation_agent/services/Report_generation.py:graph",
+        "screening-agent":"./Screening_ops_maker_agent/services/Screening_ops.py:graph"
     }
 }

@@ -41,26 +41,30 @@ langfuse_handler = CallbackHandler(
     }
 )
 
+# Predefined run id for tracing
 predefined_run_id = str(uuid.uuid4())
 
 # Redis Client
 redis_client = redis.Redis.from_url(os.getenv("REDIS_URI"), decode_responses=True)
 
-
+# Define the main DataAcquisition agent class
 class ReportGeneration:
     def __init__(self):
+        # Initialize LLM
         self.llm = ChatOpenAI(
             api_key=os.getenv("OPENAI_API_KEY"),
             model=os.getenv("MODEL"),
             base_url=os.getenv("OPENAI_BASE_URL")
         )
-        self.timeout = 3600
+        self.timeout = 3600 # 1 hour timeout
 
+    # Save state into Redis (short-term)
     def persist_state_to_shortterm(self, session_id: str, state: dict, ttl: int = 600):
         redis_key = f"state:{session_id}"
         compressed_state = json.dumps(state, default=str)
         redis_client.set(redis_key, compressed_state, ex=ttl)
 
+    # Save state into Postgres (long-term)
     def persist_state_to_longterm(self, session_id: str, user_id: int, realm_id: str, lead_id: int, trace_id: Optional[str], span_id: Optional[str], state: dict):
         conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
         cursor = conn.cursor()
@@ -76,6 +80,7 @@ class ReportGeneration:
         cursor.close()
         conn.close()
 
+    # Load state from Postgres (long-term)
     def load_state_from_longterm(self,session_id: str,user_id: str,realm_id: str,) -> Optional[Dict]:
         conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
         cursor = conn.cursor()
@@ -97,10 +102,12 @@ class ReportGeneration:
             return result[0]  
         return None
 
+    # Combined short-term and long-term saving
     def save_state(self, session_id: str, user_id: int, realm_id: str, lead_id: int, trace_id: Optional[str], span_id: Optional[str], state: dict, ttl: int = 600):
         self.persist_state_to_shortterm(session_id, state, ttl=ttl)
         self.persist_state_to_longterm(session_id, user_id, realm_id, lead_id, trace_id, span_id, state)
 
+    # Helper: serialize LLM messages
     def serialize_messages(self, messages):
         serialized = []
         for message in messages:
@@ -111,6 +118,7 @@ class ReportGeneration:
             })
         return serialized
 
+    # Save Procedural memory (task steps and triggers)
     def persist_procedural_memory(self, case_id: Optional[str], task_name: str, steps: Optional[list], trigger_conditions: Optional[dict], created_by: str = "report_generation_agent"):
         conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
         cursor = conn.cursor()
@@ -129,6 +137,7 @@ class ReportGeneration:
         cursor.close()
         conn.close()
 
+    # Save Semantic memory (knowledge)
     def persist_semantic_memory(self, user_id: int, realm_id: str, session_id: str, trace_id: Optional[str], span_id: Optional[str], case_id: Optional[str], key: str, value: Optional[str] = None, source: Optional[str] = None, vector: Optional[list] = None, tags: Optional[list] = None):
         conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
         cursor = conn.cursor()
@@ -141,7 +150,7 @@ class ReportGeneration:
         if tags is None:
             tags = ["reporting"]
         if vector is None:
-            vector = [0.0] * 1536
+            vector = [0.0] * 1536 #use embedding model instead
 
         cursor.execute(
             """
@@ -155,6 +164,7 @@ class ReportGeneration:
         cursor.close()
         conn.close()
 
+    # Save Episodic memory (events and experiences)
     def persist_episodic_memory(self, user_id: int, realm_id: str, session_id: str, trace_id: Optional[str], span_id: Optional[str], case_id: Optional[str], summary: str, raw_state: dict):
         conn = psycopg2.connect(os.getenv("POSTGRES_CONN_STRING"))
         cursor = conn.cursor()
@@ -173,6 +183,7 @@ class ReportGeneration:
         cursor.close()
         conn.close()
 
+    # Core processing function: Build the agent, load tools, process user query
     async def process(self, session: ClientSession, request: str, memory, user_id: int, realm_id: str, lead_id: int):
         async with MultiServerMCPClient({
             "server": {
@@ -180,17 +191,23 @@ class ReportGeneration:
                 "transport": "sse",
             }
         }) as client:
+            # Use Redis-based checkpointing
             async with AsyncRedisSaver.from_conn_string(os.getenv("REDIS_URI")) as checkpointer:
                 await checkpointer.checkpoints_index.create(overwrite=False)
                 await checkpointer.checkpoint_blobs_index.create(overwrite=False)
                 await checkpointer.checkpoint_writes_index.create(overwrite=False)
+
+                # Load available tools dynamically from MCP
                 tools = await load_mcp_tools(session)
                 graph_builder = StateGraph(State)
+
+                # Create ReAct-style agent
                 agent = create_react_agent(self.llm,tools, checkpointer=checkpointer)
 
                 graph_builder.add_node("document-agent", agent, retry=RetryPolicy(max_attempts=5))
                 graph_builder.add_edge(START, "document-agent")
 
+                # Add tool node
                 tool_node = ToolNode(tools=tools)
                 graph_builder.add_node("tools", tool_node.ainvoke)
 
@@ -206,6 +223,7 @@ class ReportGeneration:
                     trace_id = predefined_run_id
                     span_id = langfuse_handler.metadata.get("agent_id")
 
+                    # Invoke the graph with the user request
                     response = await graph.ainvoke(
                         {"messages": [{"role": "user", "content": request}]},
                         config={
@@ -222,6 +240,7 @@ class ReportGeneration:
                     steps = []
                     triggers = {}
 
+                    # Persist memory and states
                     self.save_state(
                         session_id=session_id,
                         user_id=user_id,
@@ -271,11 +290,13 @@ class ReportGeneration:
                 except Exception as e:
                     print(f"Error during agent processing: {str(e)}")
 
+    # Entry point for running queries
     async def run_query(self, query: str, user_id: int, realm_id: str, lead_id: int) -> dict:
         server_url = os.getenv("SSE_SERVER_URL")
         async with sse_client(url=server_url) as streams:
             async with ClientSession(*streams) as session:
                 try:
+                    # Create async Postgres connection pool
                     pool = AsyncConnectionPool(
                         conninfo=os.getenv("POSTGRES_CONN_STRING"),
                         max_size=20,

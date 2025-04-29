@@ -197,7 +197,7 @@ class ScreeningOps:
     async def process(self, session: ClientSession, request: str, memory, user_id: int, realm_id: str, lead_id: int):
         async with MultiServerMCPClient({
             "server": {
-                "url": "http://127.0.0.1:9090/sse",
+                "url": "http://127.0.0.1:9095/sse",
                 "transport": "sse",
             }
         }) as client:

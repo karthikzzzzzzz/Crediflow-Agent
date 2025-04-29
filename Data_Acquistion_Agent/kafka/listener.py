@@ -12,11 +12,11 @@ import os
 
 load_dotenv()
 
-# Create a Kafka consumer to listen to the 'risk-graph' topic
+# Create a Kafka consumer to listen to the 'data-acquistion' topic
 consumer = KafkaConsumer(
-    'risk-graph',
-    bootstrap_servers=[os.getenv("KAFKA_HOST")],  # Kafka server address from environment
-    group_id='risk-graph-group',                  # Consumer group ID
+    'data-acquisition',
+    bootstrap_servers=[os.getenv("KAFKA_BOOTSTRAP_SERVERS")],  # Kafka server address from environment
+    group_id='data-acquisition-id',                  # Consumer group ID
     value_deserializer=lambda m: json.loads(m.decode('utf-8')),  # Deserialize messages from JSON
     auto_offset_reset='earliest',                 # Start reading from the earliest offset
     enable_auto_commit=True                       # Commit offsets automatically

@@ -208,7 +208,7 @@ class DataAcquistion:
 
         async with MultiServerMCPClient({
             "server": {
-            "url": "http://127.0.0.1:9090/sse",
+            "url": "http://127.0.0.1:9095/sse",
             "transport": "sse",
         }
         }) as client:
@@ -253,7 +253,7 @@ class DataAcquistion:
                     span_id = langfuse_handler.metadata.get("agent_id") 
 
                     # Invoke the graph with the user request
-                    response = graph.invoke({"messages": [{"role": "user", "content": request}]},config={"configurable": {"thread_id": "1"},"callbacks": [langfuse_handler],"run_id": predefined_run_id})
+                    response = await graph.ainvoke({"messages": [{"role": "user", "content": request}]},config={"configurable": {"thread_id": "1"},"callbacks": [langfuse_handler],"run_id": predefined_run_id})
                     
                     processed_response = {
                             "messages": self.serialize_messages(response["messages"])

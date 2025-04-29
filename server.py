@@ -138,8 +138,8 @@ if __name__ == "__main__":
     mcp_server = mcp._mcp_server
     
     starlette_app = create_starlette_app(mcp_server, debug=True)
-    port = 9090
+    port = 9095
     print(f"Starting MCP server with SSE transport on port {port}...")
     print(f"SSE endpoint available at: http://localhost:{port}/sse")
     
-    uvicorn.run(starlette_app, host="127.0.0.1", port=port)
+    uvicorn.run(starlette_app, host="0.0.0.0", port=port)

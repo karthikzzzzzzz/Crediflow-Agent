@@ -1,3 +1,5 @@
+# File: Report_generation_agent/controllers/main.py
+
 from fastapi import HTTPException, APIRouter, Depends
 from starlette import status
 from kafka import KafkaProducer
@@ -15,14 +17,17 @@ from Report_generation_agent.dependencies.containers import Container
 from dependency_injector.wiring import inject, Provide
 
 load_dotenv()
-reportagent = APIRouter()
 
+reportagent = APIRouter()
 models.Base.metadata.create_all(engine)
 
-producer1 = KafkaProducer(
-    bootstrap_servers=[os.getenv("KAFKA_HOST")],
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')
-)
+
+def create_kafka_producer() -> KafkaProducer:
+    return KafkaProducer(
+        bootstrap_servers=[os.getenv("KAFKA_BOOTSTRAP_SERVERS")],
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+
 
 @reportagent.get(
     "/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status",
@@ -71,7 +76,7 @@ async def process_query(
     chat: ReportGeneration = Depends(Provide[Container.report_service])
 ):
     try:
-        result = await chat.run_query(request.text)
+        result = await chat.run_query(request.text,userId,realmId,leadId)
         return result
     except Exception as e:
         raise HTTPException(
@@ -90,22 +95,25 @@ async def verify_query(
     realmId: str,
     userId: int,
     leadId: int,
-    sessionId: str
+    sessionId: str,
+    producer: KafkaProducer = Depends(create_kafka_producer)
 ):
     try:
         if not sessionId:
-            raise HTTPException(status_code=500, detail="not a valid session id")
+            raise HTTPException(status_code=400, detail="Invalid session ID.")
 
         query_text = request.text
         if not query_text:
             raise HTTPException(status_code=400, detail="Missing 'query' in request.")
 
         query_id = str(uuid.uuid4())
-        producer1.send("risk-graph", {
+
+        producer.send("report", {
             "query": query_text,
             "user_id": userId,
             "realm_id": realmId,
             "lead_id": leadId,
+            "session_id": sessionId,
             "query_id": query_id,
         })
 

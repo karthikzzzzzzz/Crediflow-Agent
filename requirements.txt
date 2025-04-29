@@ -4,9 +4,8 @@ langchain-openai
 langchain-ollama
 langchain-community
 openai
-fastapi
-uvicorn
 fastapi[standard]
+uvicorn
 kafka-python
 redis
 langmem
@@ -14,6 +13,11 @@ langfuse
 sqlalchemy
 mcp
 python-dotenv
-psycopg2
 langchain-core
-lagnchain-mcp-adapters
+dependency-injector
+langchain-mcp-adapters
+psycopg-pool 
+psycopg2
+psycopg 
+langgraph-checkpoint-redis
+aiokafka

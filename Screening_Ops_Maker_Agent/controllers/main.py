@@ -1,28 +1,33 @@
+# File: Screening_ops_maker_agent/controllers/main.py
+
 from fastapi import HTTPException, APIRouter, Depends
 from starlette import status
 from kafka import KafkaProducer
 from utils.database import engine, get_db
 from sqlalchemy.orm import Session
-from utils.models import ScreeningOpsSchema  
+from utils.models import ScreeningOpsSchema
 import utils.models as models
 import json
 from utils.schema import Request, StatusResponse, KafkaSubmissionResponse, AgentResponse
 import uuid
-from Screening_ops_maker_agent.services.screening_ops import ScreeningOps
-from dependency_injector.wiring import inject, Provide
 import os
 from dotenv import load_dotenv
+from Screening_ops_maker_agent.services.screening_ops import ScreeningOps
 from Screening_ops_maker_agent.dependencies.containers import Container
+from dependency_injector.wiring import inject, Provide
 
 load_dotenv()
-screeningagent = APIRouter()
 
+screeningagent = APIRouter()
 models.Base.metadata.create_all(engine)
 
-producer1 = KafkaProducer(
-    bootstrap_servers=[os.getenv("KAFKA_HOST")],
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')
-)
+
+def create_kafka_producer() -> KafkaProducer:
+    return KafkaProducer(
+        bootstrap_servers=[os.getenv("KAFKA_BOOTSTRAP_SERVERS")],
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+
 
 @screeningagent.get(
     "/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status",
@@ -54,6 +59,7 @@ def retrieve_chat_response(
         "timestamp": log.timestamp,
     }
 
+
 @screeningagent.post(
     "/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/decision",
     response_model=AgentResponse,
@@ -70,7 +76,7 @@ async def process_query(
     chat: ScreeningOps = Depends(Provide[Container.screening_service])
 ):
     try:
-        result = await chat.run_query(request.text)
+        result = await chat.run_query(request.text,userId,realmId,leadId)
         return result
     except Exception as e:
         raise HTTPException(
@@ -89,22 +95,25 @@ async def verify_query(
     realmId: str,
     userId: int,
     leadId: int,
-    sessionId: str
+    sessionId: str,
+    producer: KafkaProducer = Depends(create_kafka_producer)
 ):
     try:
         if not sessionId:
-            raise HTTPException(status_code=500, detail="Not a valid session id")
+            raise HTTPException(status_code=400, detail="Invalid session ID.")
 
         query_text = request.text
         if not query_text:
             raise HTTPException(status_code=400, detail="Missing 'query' in request.")
 
         query_id = str(uuid.uuid4())
-        producer1.send("risk-graph", {
+
+        producer.send("screening", {
             "query": query_text,
             "user_id": userId,
             "realm_id": realmId,
             "lead_id": leadId,
+            "session_id": sessionId,
             "query_id": query_id,
         })
 

@@ -11,9 +11,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 consumer = KafkaConsumer(
-    'risk',
-    bootstrap_servers=[os.getenv("KAFKA_HOST")],
-    group_id=os.getenv("KAFKA_GROUP"),
+    'back-office',
+    bootstrap_servers=[os.getenv("KAFKA_BOOTSTRAP_SERVERS")],
+    group_id="back-office-id",
     value_deserializer=lambda m: json.loads(m.decode('utf-8')),
     auto_offset_reset='earliest',
     enable_auto_commit=True

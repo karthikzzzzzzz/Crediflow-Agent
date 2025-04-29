@@ -16,14 +16,19 @@ from Eligibility_check_agent.services.eligibility_check import EligibilityCheck
 from Eligibility_check_agent.dependencies.containers import Container
 
 load_dotenv()
-eligibilityagent = APIRouter()
 
+eligibilityagent = APIRouter()
 models.Base.metadata.create_all(engine)
 
-producer1 = KafkaProducer(
-    bootstrap_servers=[os.getenv("KAFKA_HOST")],
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')
-)
+
+def create_kafka_producer() -> KafkaProducer:
+    return KafkaProducer(
+        bootstrap_servers=[os.getenv("KAFKA_BOOTSTRAP_SERVERS")],
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+
+
+# --- Your Routes --- #
 
 @eligibilityagent.get(
     "/v1/realms/{realmId}/users/{userId}/leads/{leadId}/session/{sessionId}/status",
@@ -72,7 +77,7 @@ async def process_query(
     chat: EligibilityCheck = Depends(Provide[Container.eligibility_service])
 ):
     try:
-        result = await chat.run_query(request.text)
+        result = await chat.run_query(request.text,userId,realmId,leadId)
         return result
     except Exception as e:
         raise HTTPException(
@@ -91,7 +96,8 @@ async def verify_query(
     realmId: str,
     userId: int,
     leadId: int,
-    sessionId: str
+    sessionId: str,
+    producer: KafkaProducer = Depends(create_kafka_producer)  # <-- inject on demand!
 ):
     try:
         if not sessionId:
@@ -102,7 +108,7 @@ async def verify_query(
             raise HTTPException(status_code=400, detail="Missing 'query' in request.")
 
         query_id = str(uuid.uuid4())
-        producer1.send("risk-graph", {
+        producer.send("eligibility-agent", {
             "query": query_text,
             "user_id": userId,
             "realm_id": realmId,

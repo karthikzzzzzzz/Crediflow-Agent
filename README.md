@@ -246,8 +246,6 @@ All observations, traces, and explainability metadata across agents are tracked 
 ## Memory Management
 This system implements a hybrid memory architecture to balance responsiveness, traceability, and explainability for AI agents. It distinguishes between short-term (working) memory and various forms of long-term memory, inspired by cognitive science
 
-![469778332_10161196097323651_4827311285489118969_n (1)](https://github.com/user-attachments/assets/e9cb869a-9d6c-4180-9f51-c10439295346)
-
 
 | Framework | Type | Database |TTL |
 | ------ | ------ |------ |------ |

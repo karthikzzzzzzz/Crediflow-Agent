@@ -1,12 +1,7 @@
 
-# Intelli-Agent
-## Ninjacart Intelligent Agent for Credit Underwriting
+# Crediflow-agent
 
-[![N|Solid](https://ninjacart.com/wp-content/uploads/2023/10/cropped-Group-207-1.png)](https://nodesource.com/products/nsolid)
-
-[![Build Status](https://travis-ci.org/joemccann/dillinger.svg?branch=master)](https://travis-ci.org/joemccann/dillinger)
-
-Intelli-Agent is an advanced AI-driven automation platform designed to overhaul and streamline the manual processes currently managed by Ninjacart Fintech’s Credit, Risk, and Screening Operations teams. By leveraging agentic AI — which integrates business logic, contextual history, and large language models (LLMs) — Intelli-Agent continuously observes, reasons, and takes action across complex workflows, enabling end-to-end intelligent automation.
+Crediflow-agent is an advanced AI-driven automation platform designed to overhaul and streamline the manual processes. By leveraging agentic AI — which integrates business logic, contextual history, and large language models (LLMs) — Crediflow-agent continuously observes, reasons, and takes action across complex workflows, enabling end-to-end intelligent automation.
 
 ## Features
 
@@ -22,7 +17,7 @@ Intelli-Agent is an advanced AI-driven automation platform designed to overhaul 
 - **LangChain-MCP Adapters Integration**: The project integrates with langchain-mcp-adapters to standardize agent orchestration and communication across MCP (Model Context Protocol) ecosystem, enabling seamless plug-and-play with existing LangGraph agents and tools
 
 ## Technology Used
-Intelli-Agent uses a number of open source projects as shown below:-
+Crediflow-agent uses a number of open source projects as shown below:-
 
 | Framework | Description |
 | --------- | ----------- |
@@ -49,21 +44,10 @@ Intelli-Agent uses a number of open source projects as shown below:-
 | Docker        | Containerization for local development and deployment.                      |
 | LangChain MCP Adapters | Extensions to plug LangChain agents into LangGraph workflows.      |
 
-## Architecture
-![Untitled-2025-03-30-1225-4 (1)](https://github.com/user-attachments/assets/4f90fd14-6190-4328-a0ab-d9537c90afa1)
-
-
-## Component Overview
-![LSPOpsAgent (1)](https://github.com/user-attachments/assets/fc3292e9-24c6-4ea4-9843-ef590631b50b)
-
-
-## Deployment Overview
-![Untitled-2025-04-15-1751 (1)](https://github.com/user-attachments/assets/13cbe82a-f910-48db-84a7-946c1bf9ca66)
-
 
 ## Project Structure
 ```
-Intelli-Agent/
+Crediflow-agent/
 ├── Back_office_agent/                # Agent for handling post-processing and admin tasks  
 ├── Data_acquisition_agent/           # Gathers data from various sources
 │   ├── controllers/                  # FastAPI route handlers
@@ -95,22 +79,11 @@ Intelli-Agent/
 ## Installation
 
 ```sh
-cd Intelli-agent
+cd Crediflow-agent
 python -m venv <virtual-env-name>
 source <virtual-env-name>/bin/activate  # For Linux/macOS
 # Or use: .\<virtual-env-name>\Scripts\activate  # For Windows
 ```
-
-## Getting Started
-
-- 📚 Read the [Documentation](https://modelcontextprotocol.io) for guides and tutorials
-- 🔍 Review the [Specification](https://spec.modelcontextprotocol.io) for protocol details
-- 💻 Use our SDKs to start building:
-  - [TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
-  - [Python SDK](https://github.com/modelcontextprotocol/python-sdk)
-  - [Java SDK](https://github.com/modelcontextprotocol/java-sdk)
-  - [Kotlin SDK](https://github.com/modelcontextprotocol/kotlin-sdk)
-  - [C# SDK](https://github.com/modelcontextprotocol/csharp-sdk)
 
 ## Development
 
@@ -121,7 +94,7 @@ How to setup Local Development Environment and get started
 ### 1. Open the Folder & Create a Virtual Environment
 
 ```bash
-cd Intelli-agent
+cd Crediflow-agent
 python -m venv venv
 source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
@@ -231,7 +204,7 @@ http://127.0.0.1:8000
 ### Build and Start Using Docker Compose
 
 ```bash
-cd Intelli-agent
+cd Crediflow-agent
 docker-compose up -d --build
 ```
 
@@ -256,7 +229,7 @@ docker-compose down
 ### Curl Commands
 
 ```bash
-curl -X POST http://localhost:8000/intelli-agent/<agent-name>/v1/realms/{realmID}/users/{userID}/leads/{leadID}/session/{session_id}/decision \
+curl -X POST http://localhost:8000/Crediflow-agent/<agent-name>/v1/realms/{realmID}/users/{userID}/leads/{leadID}/session/{session_id}/decision \
      -H "Content-Type: application/json" \
      -d '{
            "text": ""
@@ -334,8 +307,6 @@ self.persist_state_to_shortterm(session_id, state, ttl=600)
 - `trace_id`, `span_id`
 - `session_id`, `case_id`
 - `timestamp`, `tags`, `vector`, etc.
-
-  ![FlowgraphtraceID drawio (1)](https://github.com/user-attachments/assets/7a789470-7a8d-4ada-bcc2-b5f25f1ba9b9)
 
 
 ```python
@@ -415,8 +386,6 @@ self.persist_procedural_memory(..., task_name="document_verification_task", step
 
 ## Agent Orchestration (Multi-Agent)
 This system uses LangGraph, a graph-based orchestration framework from LangChain, to manage interactions between multiple agents. Each agent operates independently, handling a specific task within a larger workflow and communicating via shared memory and message-passing protocols
-
-![Multi-Agent drawio (1)](https://github.com/user-attachments/assets/c0909f0a-ebce-47be-83e7-5b7c3a8c72bd)
 
 
 ### LangGraph DAG
